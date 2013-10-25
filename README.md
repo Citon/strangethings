@@ -38,8 +38,8 @@ INSTALLATION
    chmod 755 ~/bin/strangethings.py
 
 
-USE
----
+USAGE
+-----
 
  * (Optional) Decide on a list of extensions (suffixes) of files you want
    to include.
@@ -55,6 +55,20 @@ USE
   * Scanning /media/JeffDrive but only looking for files ending in .dll or .exe
 
   strangethings.py -s dll,exe /media/JeffDrive
+
+
+
+EQUIVALENT MIME TYPES
+---------------------
+
+Depending on your specific magic lists you may find many files being reported
+as not matching that have types you consider equivalent.  For example,
+a .css (Cascading Style Sheet) file may be detected as text/html by libmagic.
+You can edit the "equivtypes" dictionary inside strangethings.py to add
+mappings between the type tied to an extension and the possible libmagic
+detected types you want to accept for that extension.
+
+See the strangethings.py source for more information.
 
 
 LICENSE

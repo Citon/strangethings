@@ -1,4 +1,4 @@
-#!python
+#!/usr/bin/python
 
 # strangethings.py - Strange Things Are Afoot At The Circle K.
 #                    Scan a file structure for files with an extension
@@ -97,6 +97,10 @@ def magiccheck(filename):
     try:
         # Collect magic MIME type
         magitype = magic.from_file(filename, mime=True)
+        
+        # Strip additional parameters (; and after)
+        magitype = magitype.split(';')[0]
+
     except OSError as exc:
         if exc.errno == errno.ENOENT:
             sys.stderr.write("WARNING: File disappeared.  Skipping: %s\n" % filename)
