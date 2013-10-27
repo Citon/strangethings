@@ -36,6 +36,7 @@
 
 # Imports
 import sys, os, errno, re, optparse, mimetypes
+import ConfigParser  # Change to "configparser" if using Python 3
 
 # Requires the python-magic package from https://github.com/ahupp/python-magic
 import magic
@@ -44,21 +45,13 @@ import magic
 # Set to 1 for extra status...
 DEBUG = 0
 
-# Since type matching is not a science, much less a perfect one, you can
-# use the typegroups dict to create lists of MIME types that should be
-# treated as equivalent.  The key for each should be the type related to
-# the suffix and the value should be a list of acceptable equivalents.
-# Example:  "text/css": ["text/html", "text/plain"]
-equivtypes = {
-    "text/css": ["text/html"],
-    "text/html": ["text/plain"]
-    }
 
-
-def scanner(suffixlist, scandir):
+def scanner(suffixlist, equivtypes, scandir):
     """
     Scan for any files with a suffix in the suffixlist under scandir.  Matches
-    are fed to a magic file check then reverse lookup.
+    are fed to a magic file check then reverse lookup.  If the MIME type defined
+    for the suffix of the file is in the equivtypes dict, the list of equivtypes
+    defined for the given MIME type are also considered good.
     """
     
     # Build a regex from the suffixlist
@@ -78,7 +71,7 @@ def scanner(suffixlist, scandir):
 
                 # But is it for real?  Check using the full path
                 fullpath = os.path.normpath(os.sep.join((base,filename)))
-                (sufitype, magitype) = magiccheck(fullpath)
+                (sufitype, magitype) = magiccheck(equivtypes, fullpath)
 
                 if sufitype == True:
                     (DEBUG) and (sys.stderr.write("DEBUG: PASSED %s/%s,%s\n" % (base, filename, magitype)))
@@ -87,11 +80,13 @@ def scanner(suffixlist, scandir):
 
 
 
-def magiccheck(filename):
+def magiccheck(equivtypes, filename):
     """
     Perform a magic file test on filename then compare the magic results to
     the extension on the file.  Returns True and the MIME type if magic
     matches, else returns the supposed MIME type and the detected MIME type.
+    Uses the equivtypes dict to allow for multiple magic MIME type results
+    to map to a specific extension and still be considered a match.
     """
 
     try:
@@ -100,6 +95,10 @@ def magiccheck(filename):
         
         # Strip additional parameters (; and after)
         magitype = magitype.split(';')[0]
+
+    except UnicodeDecodeError:
+        sys.stderr.write("WARNING: File could not be scanned by magic.  Skipping: %s\n" % filename)
+        return (TRUE,"null")
 
     except OSError as exc:
         if exc.errno == errno.ENOENT:
@@ -136,29 +135,44 @@ def main():
 
     # Process command line options
     progname = os.path.basename(__file__)
-    parser = optparse.OptionParser(usage="%s [-s SUFFIXLIST] DIRECTORY" % progname)
-    parser.add_option("-s", "--suffixlist", dest="suffixraw", help="Specify list of suffixes to scan (separated by comma)", metavar="SUFFIXLIST")
+    parser = optparse.OptionParser(usage="%s [-c CONFFILE] [-s SUFFIXLIST] DIRECTORY" % progname)
+    parser.add_option("-c", "--config", dest="conffile", help="Specify configuration file", metavar="FILE")
+    parser.add_option("-s", "--suffixlist", dest="suffixlist", help="Choose alternate suffix list from configuration file", metavar="SUFFIXLIST")
+
     (options, args) = parser.parse_args()
 
-    if options.suffixraw:
-        # Translate a CSV list to a python list
-        suffixtemp = options.suffixraw.lower().split(",")
+    # Create an empty equivtypes dict
+    equivtypes = {}
 
-    else:
-        # Set a default suffix list based solely on what we can supposedly
-        # parse
-        suffixtemp = mimetypes.types_map.keys()
+    # Set the default suffixlist to match all known suffixes for our MIME lib
+    suffixlists = { "default": []}
+    for key in mimetypes.types_map.keys():
+        if key[0] == ".":
+            key = key[1:]
+        suffixlists['default'].append(key)
 
-    # Post process the suffixlist - The Mime libs assume a . at the beginning.
-    # We strip the dot
-    suffixlist = []
-    for item in suffixtemp:
-        if item[0] == ".":
-            # Ditch the dot
-            item = item[1:]
+    # Parse the config file
+    if options.conffile:
+        # See if you can open this supposed "config file"
+        if not os.path.isfile(options.conffile):
+            sys.exit("FATAL: Configuration file not found")
 
-        suffixlist.append(item)
+        config = ConfigParser.RawConfigParser()
+        try:
+            config.read(options.conffile)
+        except OSError as exc:
+            sys.exit("FATAL: Configuration file error: %s\n" % exc)
 
+        if config.has_section('equivtypes'):
+            for (ltype, rtypes) in config.items('equivtypes'):
+                # Turn CSV lists into arrays and tuck them into our equivlists
+                equivtypes[ltype] = rtypes.split(',')
+
+        if config.has_section('suffixlists'):
+            for (lname, lval) in config.items('suffixlists'):
+                suffixlists[lname] = lval.split(',')
+
+        
     # There best be a directory defined...
     if len(args) != 1:
         parser.error("DIRECTORY not defined.  What am I supposed to scan?")
@@ -167,13 +181,22 @@ def main():
 
     # Check for existence of the directory we are scanning
     if not (os.path.exists(scandir) and os.path.isdir(scandir)):
-        sys.exit("BAD DIRECTORY '%s'", scandir)
+        sys.exit("FATAL: BAD DIRECTORY '%s'\n", scandir)
 
+    # Allow selecting an alternate suffix list
+    if options.suffixlist:
+        if suffixlists.has_key(options.suffixlist):
+            suffixlist = suffixlists[options.suffixlist]
+        else:
+            sys.exit("FATAL: Specified suffix list %s not defined\n" % options.suffixlist)
+    else:
+        suffixlist = suffixlists["default"]
+    
     
     # Scan it
     sys.stderr.write("Starting scan of %s\n" % scandir)
     sys.stdout.write("FILENAME,SUFFIX_TYPE,MAGIC_TYPE\n")
-    scanner(suffixlist, scandir)
+    scanner(suffixlist, equivtypes, scandir)
     sys.stderr.write("Completed scan of %s\n" % scandir)
     
     exit(0)
@@ -181,4 +204,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 

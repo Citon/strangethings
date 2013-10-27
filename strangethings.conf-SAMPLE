@@ -1,0 +1,35 @@
+# StrangeThings Configuration File
+
+[equivtypes]
+
+# Since type matching is not a science, much less a perfect one, you can
+# use the equivtypes section to create lists of MIME types that should be
+# treated as equivalent.  The key for each should be the type related to
+# the suffix and the value should be a list of acceptable equivalents that
+# the magic check might return.  (Separate types with commas.)
+#
+# Example:        text/css = text/html,text/plain
+
+text/css = text/html
+text/x-python = text/plain
+text/html = text/plain
+
+
+
+[suffixlists]
+# Create lists of suffixes to search for.  A list can be selected by
+# command line using the "-s SUFFIXLIST" flag. If you do not use the "-s"
+# the default behaviour is to use all suffixes for known MIME types.  This
+# can be overriden by setting a "default" entry below.
+#
+# Example:       officedocs = xls,xlsx,doc,docx,ppt,pptx
+
+officedocs = doc,docx,xls,xlsx,ppt,pptx
+
+cryptolocker = aodt,ods,odp,odm,odc,odb,doc,docx,docm,wps,xls,xlsx,xlsm,xlsb,xlk,ppt,pptx,pptm,mdb,accdb,pst,dwg,dxf,dxg,wpd,rtf,wb2,mdf,dbf,psd,pdd,eps,ai,indd,cdr,jpg,jpe,img_jpg,dng,3fr,arw,srf,sr2,bay,crw,cr2,dcr,kdc,erf,mef,mrw,nef,nrw,orf,raf,raw,rwl,rw2,r3d,ptx,pef,srw,x3f,der,cer,crt,pem,pfx,p12,p7b,p7c
+
+windowsbin = exe,dll,com
+
+
+
+
