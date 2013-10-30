@@ -98,12 +98,12 @@ def magiccheck(equivtypes, filename):
 
     except UnicodeDecodeError:
         sys.stderr.write("WARNING: File could not be scanned by magic.  Skipping: %s\n" % filename)
-        return (TRUE,"null")
+        return (True,"null")
 
     except OSError as exc:
         if exc.errno == errno.ENOENT:
             sys.stderr.write("WARNING: File disappeared.  Skipping: %s\n" % filename)
-            return (TRUE,"null")
+            return (True,"null")
         else:
             raise
 
