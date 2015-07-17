@@ -32,4 +32,15 @@ windowsbin = exe,dll,com
 
 
 
+[excludedirs]
+
+# Define a list of directories to exlude from the search. An exclusion list
+# can be selected by using the "-e EXCLUDEDIRS" flag. On a NetApp filer for example
+# you'll want to exclude snapshots from the search.
+#
+# Example:       netapp = ~snapshot
+
+netapp = ~snapshot
+
+
 
