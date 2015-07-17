@@ -36,7 +36,15 @@
 
 # Imports
 import sys, os, errno, re, optparse, mimetypes
-import ConfigParser  # Change to "configparser" if using Python 3
+
+# Check if we're running Python 2.x, if so set default encoding to UTF-8
+# and load the correct configparser module depending on Python version.
+if sys.version_info < (3, 0):
+    reload(sys)
+    sys.setdefaultencoding('utf8')
+    import ConfigParser
+else:
+    import configparser
 
 # Requires the python-magic package from https://github.com/ahupp/python-magic
 import magic
@@ -46,7 +54,7 @@ import magic
 DEBUG = 0
 
 
-def scanner(suffixlist, equivtypes, scandir):
+def scanner(suffixlist, equivtypes, scandir, excludedirs):
     """
     Scan for any files with a suffix in the suffixlist under scandir.  Matches
     are fed to a magic file check then reverse lookup.  If the MIME type defined
@@ -61,8 +69,12 @@ def scanner(suffixlist, equivtypes, scandir):
 
     filere = re.compile(fileretext)
 
+    exclude = set(excludedirs)
+
     # Walk the directory
-    for base, dirs, files in os.walk(scandir):
+    for base, dirs, files in os.walk(scandir, topdown=True):
+        # Don't scan directories which are in the exclusion list
+        dirs[:] = [d for d in dirs if d not in exclude]
         # Filter for files we care about
         for filename in files:
             if filere.search(filename):
@@ -135,14 +147,16 @@ def main():
 
     # Process command line options
     progname = os.path.basename(__file__)
-    parser = optparse.OptionParser(usage="%s [-c CONFFILE] [-s SUFFIXLIST] DIRECTORY" % progname)
+    parser = optparse.OptionParser(usage="%s [-c CONFFILE] [-s SUFFIXLIST] [-e EXCLUDEDIRS] DIRECTORY" % progname)
     parser.add_option("-c", "--config", dest="conffile", help="Specify configuration file", metavar="FILE")
     parser.add_option("-s", "--suffixlist", dest="suffixlist", help="Choose alternate suffix list from configuration file", metavar="SUFFIXLIST")
+    parser.add_option("-e", "--excludedirs", dest="excludedirs", help="Choose list of directoriers to exclude", metavar="EXCLUDEDIRS")
 
     (options, args) = parser.parse_args()
 
-    # Create an empty equivtypes dict
+    # Create an empty equivtypes and excludedirs dict
     equivtypes = {}
+    excludedirs = {}
 
     # Set the default suffixlist to match all known suffixes for our MIME lib
     suffixlists = { "default": []}
@@ -172,7 +186,10 @@ def main():
             for (lname, lval) in config.items('suffixlists'):
                 suffixlists[lname] = lval.split(',')
 
-        
+        if config.has_section('excludedirs'):
+            for (lsource, ldir) in config.items('excludedirs'):
+                excludedirs[lsource] = ldir.split(',')
+                
     # There best be a directory defined...
     if len(args) != 1:
         parser.error("DIRECTORY not defined.  What am I supposed to scan?")
@@ -192,6 +209,12 @@ def main():
     else:
         suffixlist = suffixlists["default"]
     
+    # Allow to exclude a list of directories from the search
+    if options.excludedirs:
+        if excludedirs.has_key(options.excludedirs):
+            excludedirs = excludedirs[options.excludedirs]
+        else:
+            sys.exit("FATAL: Specified directory exclusion list %s not defined\n" % options.excludedirs)
     
     # Scan it
     sys.stderr.write("Starting scan of %s\n" % scandir)
