@@ -6,7 +6,7 @@
 #                    test.  Does not prove a file is bad, just that the
 #                    filename and what is inside appear not to match.
 
-# Copyright(c) 2013, Citon Computer Corporation
+# Copyright(c) 2016, Citon Computer Corporation
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -54,22 +54,23 @@ import magic
 DEBUG = 0
 
 
-def scanner(suffixlist, equivtypes, scandir, excludedirs):
+def scanner(suffixlist, equivtypes, scandir, excludelist):
     """
     Scan for any files with a suffix in the suffixlist under scandir.  Matches
-    are fed to a magic file check then reverse lookup.  If the MIME type defined
-    for the suffix of the file is in the equivtypes dict, the list of equivtypes
-    defined for the given MIME type are also considered good.
+    are fed to a magic file check then reverse lookup.  If the MIME type
+    defined for the suffix of the file is in the equivtypes dict, the list
+    of equivtypes defined for the given MIME type are also considered good.
     """
     
     # Build a regex from the suffixlist
     fileretext = "^.+\.(" + '|'.join(suffixlist) + ")\s*$"
     
-    (DEBUG) and (sys.stderr.write("DEBUG: Suffix match pattern: %s\n" % fileretext))
+    (DEBUG) and (sys.stderr.write("DEBUG: Suffix match pattern: %s\n" % 
+                                    fileretext))
 
     filere = re.compile(fileretext)
 
-    exclude = set(excludedirs)
+    exclude = set(excludelist)
 
     # Walk the directory
     for base, dirs, files in os.walk(scandir, topdown=True):
@@ -79,16 +80,20 @@ def scanner(suffixlist, equivtypes, scandir, excludedirs):
         for filename in files:
             if filere.search(filename):
                 # Match!
-                (DEBUG) and (sys.stderr.write("DEBUG: FOUND %s/%s\n" % (base, filename)))
+                (DEBUG) and (sys.stderr.write("DEBUG: FOUND %s/%s\n" % 
+                                                (base, filename)))
 
                 # But is it for real?  Check using the full path
                 fullpath = os.path.normpath(os.sep.join((base,filename)))
                 (sufitype, magitype) = magiccheck(equivtypes, fullpath)
 
                 if sufitype == True:
-                    (DEBUG) and (sys.stderr.write("DEBUG: PASSED %s/%s,%s\n" % (base, filename, magitype)))
+                    (DEBUG) and (sys.stderr.write("DEBUG: PASSED %s/%s,%s\n" %
+                                                    (base, filename,
+                                                     magitype)))
                 else:
-                    sys.stdout.write("\"%s\",%s,%s\n" % (fullpath,sufitype,magitype))
+                    sys.stdout.write("\"%s\",%s,%s\n" %
+                                        (fullpath,sufitype,magitype))
 
 
 
@@ -109,12 +114,14 @@ def magiccheck(equivtypes, filename):
         magitype = magitype.split(';')[0]
 
     except UnicodeDecodeError:
-        sys.stderr.write("WARNING: File could not be scanned by magic.  Skipping: %s\n" % filename)
+        sys.stderr.write("WARNING: File could not be scanned by magic. "
+                         "Skipping: %s\n" % filename)
         return (True,"null")
 
     except OSError as exc:
         if exc.errno == errno.ENOENT:
-            sys.stderr.write("WARNING: File disappeared.  Skipping: %s\n" % filename)
+            sys.stderr.write("WARNING: File disappeared.  "
+                             "Skipping: %s\n" % filename)
             return (True,"null")
         else:
             raise
@@ -147,16 +154,23 @@ def main():
 
     # Process command line options
     progname = os.path.basename(__file__)
-    parser = optparse.OptionParser(usage="%s [-c CONFFILE] [-s SUFFIXLIST] [-e EXCLUDEDIRS] DIRECTORY" % progname)
-    parser.add_option("-c", "--config", dest="conffile", help="Specify configuration file", metavar="FILE")
-    parser.add_option("-s", "--suffixlist", dest="suffixlist", help="Choose alternate suffix list from configuration file", metavar="SUFFIXLIST")
-    parser.add_option("-e", "--excludedirs", dest="excludedirs", help="Choose list of directoriers to exclude", metavar="EXCLUDEDIRS")
+    parser = optparse.OptionParser(usage="%s [-c CONFFILE] [-s SUFFIXLIST] "
+                                         "[-e EXCLUDELIST] DIRECTORY" %
+                                         progname)
+    parser.add_option("-c", "--config", dest="conffile",
+                      help="Specify configuration file", metavar="FILE")
+    parser.add_option("-s", "--suffixlist", dest="suffixlist",
+                      help="Choose alternate suffix list from configuration "
+                           "file", metavar="SUFFIXLIST")
+    parser.add_option("-e", "--excludelist", dest="excludelist",
+                      help="Choose list of directoriers in configuration to "
+                           "exclude", metavar="EXCLUDELIST")
 
     (options, args) = parser.parse_args()
 
     # Create an empty equivtypes and excludedirs dict
     equivtypes = {}
-    excludedirs = {}
+    excludelists = {}
 
     # Set the default suffixlist to match all known suffixes for our MIME lib
     suffixlists = { "default": []}
@@ -186,10 +200,18 @@ def main():
             for (lname, lval) in config.items('suffixlists'):
                 suffixlists[lname] = lval.split(',')
 
-        if config.has_section('excludedirs'):
-            for (lsource, ldir) in config.items('excludedirs'):
-                excludedirs[lsource] = ldir.split(',')
-                
+        # Support "excludelist" or "excludedirs" as same
+        if config.has_section('excludelists'):
+            ename = 'excludelists'
+        elif config.has_section('excludedirs'):
+            ename = 'exludedirs'
+        else:
+            ename = None
+        
+        if ename is not None:
+            for (lsource, ldir) in config.items(ename):
+                excludelists[lsource] = ldir.split(',')
+        
     # There best be a directory defined...
     if len(args) != 1:
         parser.error("DIRECTORY not defined.  What am I supposed to scan?")
@@ -205,21 +227,27 @@ def main():
         if suffixlists.has_key(options.suffixlist):
             suffixlist = suffixlists[options.suffixlist]
         else:
-            sys.exit("FATAL: Specified suffix list %s not defined\n" % options.suffixlist)
+            sys.exit("FATAL: Specified suffix list %s not defined in "
+                     "configuration file.\nAvailable Suffix Lists: %s\n" % (
+                         options.suffixlist, ", ".join(suffixlists.keys())))
     else:
         suffixlist = suffixlists["default"]
     
     # Allow to exclude a list of directories from the search
-    if options.excludedirs:
-        if excludedirs.has_key(options.excludedirs):
-            excludedirs = excludedirs[options.excludedirs]
+    if options.excludelist:
+        if excludelists.has_key(options.excludelist):
+            excludelist = excludelists[options.excludelist]
         else:
-            sys.exit("FATAL: Specified directory exclusion list %s not defined\n" % options.excludedirs)
+            sys.exit("FATAL: Directory exclusion list %s not defined in "
+                     "configuration file.\nAvailable Exclude Lists: %s\n" % (
+                         options.excludelist, ", ".join(excludelists.keys())))
+    else:
+        excludelist = []
     
     # Scan it
     sys.stderr.write("Starting scan of %s\n" % scandir)
     sys.stdout.write("FILENAME,SUFFIX_TYPE,MAGIC_TYPE\n")
-    scanner(suffixlist, equivtypes, scandir)
+    scanner(suffixlist, equivtypes, scandir, excludelist)
     sys.stderr.write("Completed scan of %s\n" % scandir)
     
     exit(0)
@@ -227,5 +255,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

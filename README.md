@@ -58,7 +58,10 @@ INSTALLATION
                   all prefixes known to be hit by the October 2013 version
                   of CryptoLocker.
 
-
+ * excludelists - This section lets you define lists of directory components
+                  to skip. This is most useful for things like /proc or
+                  the special ~snapshot directory in a NetApp.
+ 
 USAGE
 -----
 
@@ -76,6 +79,11 @@ USAGE
 
   strangethings.py -c ~/mystrangethings.conf -s windowsbin /media/JeffDrive
 
+  * Scanning /na01/homes but only looking for files that match our
+    "docs" prefix list in /etc/strange.conf and skipping the
+    NetApp snapshots.  (Assumes an exclidelist entry of netapp = ~snapshot)
+
+  strangethings.py -c /etc/strange.conf -s docs -e netapp /na01/homes
 
 
 EQUIVALENT MIME TYPES
