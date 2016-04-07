@@ -44,7 +44,7 @@ if sys.version_info < (3, 0):
     sys.setdefaultencoding('utf8')
     import ConfigParser
 else:
-    import configparser
+    from configparser import ConfigParser
 
 # Requires the python-magic package from https://github.com/ahupp/python-magic
 import magic
@@ -93,8 +93,8 @@ def scanner(suffixlist, equivtypes, scandir, excludelist):
                                                      magitype)))
                 else:
                     sys.stdout.write("\"%s\",%s,%s\n" %
-                                        (fullpath,sufitype,magitype))
-
+                                        (fullpath, sufitype,
+                                         magitype.decode('ascii')))
 
 
 def magiccheck(equivtypes, filename):
@@ -110,8 +110,9 @@ def magiccheck(equivtypes, filename):
         # Collect magic MIME type
         magitype = magic.from_file(filename, mime=True)
         
-        # Strip additional parameters (; and after)
-        magitype = magitype.split(';')[0]
+        # Strip additional parameters (; and after) - (Using binary ;
+        # since magitype is a byte string in in Python 3)
+        magitype = magitype.split(b';')[0]
 
     except UnicodeDecodeError:
         sys.stderr.write("WARNING: File could not be scanned by magic. "
@@ -135,14 +136,14 @@ def magiccheck(equivtypes, filename):
         return (True, magitype)
 
     # Do a MIME lookup on the extension
-    if mimetypes.types_map.has_key(sufi):
+    if sufi in mimetypes.types_map:
         sufitype = mimetypes.types_map[sufi]
     else:
         sufitype = "unknown"
 
     # Run through our equivtypes table to see if this is an equivalent
     # (acceptable) mismatch
-    if (equivtypes.has_key(sufitype) and (magitype in equivtypes[sufitype])):
+    if ((sufitype in equivtypes) and (magitype in equivtypes[sufitype])):
         return (True, magitype)
     
     # No dice - Return mismatch
@@ -184,8 +185,12 @@ def main():
         # See if you can open this supposed "config file"
         if not os.path.isfile(options.conffile):
             sys.exit("FATAL: Configuration file not found")
-
-        config = ConfigParser.RawConfigParser()
+        
+        if sys.version_info < (3, 0):
+            config = ConfigParser.RawConfigParser()
+        else:
+            config = ConfigParser(interpolation=None)
+        
         try:
             config.read(options.conffile)
         except OSError as exc:
@@ -224,7 +229,7 @@ def main():
 
     # Allow selecting an alternate suffix list
     if options.suffixlist:
-        if suffixlists.has_key(options.suffixlist):
+        if options.suffixlist in suffixlists:
             suffixlist = suffixlists[options.suffixlist]
         else:
             sys.exit("FATAL: Specified suffix list %s not defined in "
@@ -235,7 +240,7 @@ def main():
     
     # Allow to exclude a list of directories from the search
     if options.excludelist:
-        if excludelists.has_key(options.excludelist):
+        if options.excludelist in excludelists:
             excludelist = excludelists[options.excludelist]
         else:
             sys.exit("FATAL: Directory exclusion list %s not defined in "
